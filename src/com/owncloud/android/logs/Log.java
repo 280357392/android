@@ -32,7 +32,7 @@ public class Log {
         mLogContent = logContent;
     }
 
-    public void setLogDate(Date logTimestamp) {
+    public void setLogTimestamp(Date logTimestamp) {
         mLogTimestamp = logTimestamp;
     }
 

@@ -155,8 +155,7 @@ public class LogHistoryActivity extends ToolbarActivity {
         ArrayList<Uri> uris = new ArrayList<Uri>();
 
         // Convert from paths to Android friendly Parcelable Uri's
-        for (String file : Log_OC.getLogFileNames())
-        {
+        for (String file : Log_OC.getLogFileNames()) {
             File logFile = new File(mLogPath, file);
             if (logFile.exists()) {
 
@@ -189,14 +188,12 @@ public class LogHistoryActivity extends ToolbarActivity {
     }
 
     /**
-     *
      * Class for loading the log data async
-     *
      */
     private class LoadingLogTask extends AsyncTask<String, Void, ArrayList<Log>> {
 
         protected ArrayList<Log> doInBackground(String... args) {
-            return readLogFile();
+            return readLogFiles();
         }
 
         protected void onPostExecute(ArrayList<Log> result) {
@@ -208,65 +205,87 @@ public class LogHistoryActivity extends ToolbarActivity {
         }
 
         /**
-         * Read and show log file info
+         * Read all log files
          */
-        private ArrayList<Log> readLogFile() {
-            String[] logFileName = Log_OC.getLogFileNames();
+        private ArrayList<Log> readLogFiles() {
+            String[] logFileNames = Log_OC.getLogFileNames();
+            ArrayList<Log> allLogs = new ArrayList<>();
+
+            for (int i = logFileNames.length - 1; i >= 0; i--) {
+                allLogs.addAll(readLogFile(logFileNames[i]));
+            }
+
+            return allLogs;
+        }
+
+        /**
+         * Read the logs from a log file
+         *
+         * @param logFileName name of the log file to read
+         * @return list of {@link Log} contained in that file
+         */
+        private ArrayList<Log> readLogFile(String logFileName) {
+            File file = new File(mLogPath, logFileName);
+            BufferedReader bufferedReader = null;
+
             ArrayList<Log> logList = new ArrayList<>();
-            BufferedReader br = null;
 
-            try {
-                String line;
-                for (int i = logFileName.length-1; i >= 0; i--) {
-                    File file = new File(mLogPath,logFileName[i]);
-                    if (file.exists()) {
-                        // Check if FileReader is ready
-                        if (new FileReader(file).ready()) {
-                            br = new BufferedReader(new FileReader(file));
-                            Date timestamp = null;
-                            int count = 0;
+            if (file.exists()) {
+                // Check if FileReader is ready
+                try {
+                    if (new FileReader(file).ready()) {
 
-                            while ((line = br.readLine()) != null) {
-                                switch (count) {
-                                    case 0: // Empty line, skip it
-                                        count++;
-                                        break;
+                        bufferedReader = new BufferedReader(new FileReader(file));
 
-                                    case 1: // Log timestamp
-                                        try {
-                                            SimpleDateFormat simpleDateFormat =
-                                                    new SimpleDateFormat("yyyy/MM/dd H:mm:ss");
-                                            timestamp = simpleDateFormat.parse(line);
-                                        } catch (ParseException e) {
-                                            e.printStackTrace();
-                                        }
-                                        count++;
-                                        break;
+                        String line; // Each line in a file
+                        ArrayList<String> logLines = new ArrayList<>();
 
-                                    case 2: // Log content, create the instance
-                                        logList.add(new Log(timestamp, line));
-                                        count = 0;
-                                        break;
-                                }
+                        while ((line = bufferedReader.readLine()) != null) {
+                            logLines.add(line);
+                            if (logLines.size() == 3) { // 3 lines in the file form a log
+                                logList.add(createLogFromLines(logLines));
+                                logLines.clear();
                             }
+                        }
+                    }
+                } catch (IOException e) {
+                    Log_OC.d(TAG, e.getMessage().toString());
+                } finally {
+                    if (bufferedReader != null) {
+                        try {
+                            bufferedReader.close();
+                        } catch (IOException e) {
+                            // ignore
                         }
                     }
                 }
             }
-            catch (IOException e) {
-                Log_OC.d(TAG, e.getMessage().toString());
 
-            } finally {
-                if (br != null) {
-                    try {
-                        br.close();
-                    } catch (IOException e) {
-                        // ignore
-                    }
-                }
-            }
             return logList;
         }
+
+        /**
+         * Create a {@link Log} instance from several lines contained in the log file
+         *
+         * @param lines lines that form a log - 3 lines => 1 log
+         * @return {@link Log} instance
+         */
+        private Log createLogFromLines(ArrayList<String> lines) {
+
+            Date timestamp = null;
+
+            try {
+                SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy/MM/dd H:mm:ss");
+                timestamp = simpleDateFormat.parse(lines.get(1));
+            } catch (ParseException e) {
+                Log_OC.d(TAG, e.getMessage().toString());
+            }
+
+            String content = lines.get(2);
+
+            return new Log(timestamp, content);
+        }
+
     }
 
     /**
@@ -283,7 +302,7 @@ public class LogHistoryActivity extends ToolbarActivity {
     /**
      * Dismiss loading dialog
      */
-    public void dismissLoadingDialog(){
+    public void dismissLoadingDialog() {
         Fragment frag = getSupportFragmentManager().findFragmentByTag(DIALOG_WAIT_TAG);
         if (frag != null) {
             LoadingDialog loading = (LoadingDialog) frag;
